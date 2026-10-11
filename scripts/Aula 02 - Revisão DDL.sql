@@ -34,10 +34,7 @@ foreign key (numero_departamento)
 references departamento(numero)
 -- no action, set null, restrict, cascade, set default
 on delete no action
-on update cascade;SELECT
-    numero_departamento,
-    COUNT(*) AS quantidade_funcionarios
-FROM funcionario
+on update cascade;
 
 -- TO DO: adicionar restrições FK para cpf_supervisor e cpf_gerente
 alter table funcionario
