@@ -14,6 +14,8 @@ VALUES (1, 'Cliente', 'Desafio 02', 'cliente.desafio02@example.com', 1);
 
 -- ERRO intencional: first_name é obrigatório (NOT NULL).
 -- No PostgreSQL, esse erro deixa a transação em estado abortado.
+-- Se sua ferramenta parar a execução ao encontrar o erro, rode o ROLLBACK
+-- manualmente na mesma sessão antes de continuar.
 INSERT INTO customer (store_id, first_name, last_name, email, address_id)
 VALUES (1, NULL, 'Cadastro Inválido', 'invalido.desafio02@example.com', 1);
 
@@ -44,6 +46,8 @@ RETURNING inventory_id;
 SAVEPOINT estoque_atualizado;
 
 -- ERRO intencional: film_id 999999 não existe e viola a chave estrangeira.
+-- Se a ferramenta parar neste erro, rode o ROLLBACK TO manualmente na mesma
+-- sessão para recuperar a transação e então execute o INSERT válido e COMMIT.
 INSERT INTO inventory (film_id, store_id)
 VALUES (999999, 1);
 
@@ -73,62 +77,64 @@ COMMIT;
 -- QUESTÃO 03 - Concorrência sobre a mesma unidade de estoque
 -- ============================================================
 
--- Antes do teste, copie um inventory_id retornado na questão 2 e use o mesmo
--- valor nas duas sessões no lugar de 12345. Use uma unidade recém-cadastrada,
--- que ainda não tenha locações associadas. Abra duas conexões/sessões SQL.
--- store_id 2 representa a outra loja do dvdrental.
--- Importante: BEGIN sozinho não dá prioridade; a prioridade é de quem obtém
--- primeiro o bloqueio da linha (FOR UPDATE, UPDATE ou DELETE).
+-- Pré-requisitos: execute a questão 2 e anote o inventory_id retornado por um
+-- dos INSERTs válidos. Use esse MESMO ID em ambas as sessões no lugar de :id.
+-- Escolha uma unidade sem locações associadas para que a FK de rental não
+-- impeça o DELETE. Abra duas conexões SQL, ambas no isolamento padrão
+-- READ COMMITTED. No dvdrental padrão, store_id = 2 é a outra loja.
+-- Execute os passos manualmente e na ordem indicada; não rode este bloco como
+-- um único script, pois as sessões precisam agir enquanto a outra aguarda.
+-- BEGIN não reserva prioridade: prevalece quem obtiver primeiro o bloqueio da
+-- linha com FOR UPDATE, UPDATE ou DELETE.
 
 -- ------------------------------------------------------------
--- CENÁRIO A: a sessão A bloqueia/atualiza primeiro; a sessão B espera e exclui
+-- CENÁRIO A: A transfere primeiro; B aguarda e depois exclui
 -- ------------------------------------------------------------
--- Sessão A:
+-- 1) Sessão A: bloqueie a unidade e mantenha a transação aberta.
 -- BEGIN;
 -- SELECT inventory_id, store_id
 -- FROM inventory
--- WHERE inventory_id = 12345
+-- WHERE inventory_id = :id
 -- FOR UPDATE;
--- -- A linha fica bloqueada até COMMIT/ROLLBACK.
 --
--- Sessão B (execute enquanto A ainda está aberta; ficará aguardando):
+-- 2) Sessão B: tente excluir. Este comando ficará aguardando o bloqueio de A.
 -- BEGIN;
--- DELETE FROM inventory WHERE inventory_id = 12345;
+-- DELETE FROM inventory WHERE inventory_id = :id;
 --
--- Sessão A (enquanto B aguarda):
--- UPDATE inventory SET store_id = 2 WHERE inventory_id = 12345;
+-- 3) Enquanto B aguarda, sessão A transfere a unidade e confirma.
+-- UPDATE inventory SET store_id = 2 WHERE inventory_id = :id;
 -- COMMIT;
 --
--- Após o COMMIT de A, o DELETE pendente da sessão B prossegue e remove a linha.
--- Conclua a sessão B:
+-- 4) O DELETE de B prossegue após o COMMIT de A e remove a unidade.
 -- COMMIT;
--- Resultado final: a unidade não existe. O UPDATE de A foi serializado antes
--- do DELETE de B; se a intenção for preservar a transferência, B deve revalidar
--- a decisão após o bloqueio, em vez de excluir incondicionalmente.
+-- Resultado: o UPDATE de A ocorre primeiro, mas a exclusão de B é a operação
+-- final; a linha não existe mais. O bloqueio serializa as operações, não decide
+-- qual regra de negócio deve prevalecer. Para preservar a transferência, B
+-- precisa revalidar a autorização/estado antes de excluir.
 
 -- ------------------------------------------------------------
--- CENÁRIO B: a sessão B bloqueia/exclui primeiro; a sessão A espera
+-- CENÁRIO B: B exclui primeiro; A aguarda e depois não encontra a linha
 -- ------------------------------------------------------------
--- Sessão B:
+-- 1) Sessão B: bloqueie e exclua a unidade, mas não confirme ainda.
 -- BEGIN;
 -- SELECT inventory_id, store_id
 -- FROM inventory
--- WHERE inventory_id = 12345
+-- WHERE inventory_id = :id
 -- FOR UPDATE;
--- DELETE FROM inventory WHERE inventory_id = 12345;
--- -- Não confirme ainda; mantenha a transação aberta.
+-- DELETE FROM inventory WHERE inventory_id = :id;
 --
--- Sessão A (execute enquanto B ainda está aberta; ficará aguardando):
+-- 2) Sessão A: tente transferir enquanto B mantém a transação aberta;
+-- o UPDATE ficará aguardando.
 -- BEGIN;
--- UPDATE inventory SET store_id = 2 WHERE inventory_id = 12345;
+-- UPDATE inventory SET store_id = 2 WHERE inventory_id = :id;
 --
--- Sessão B:
+-- 3) Sessão B confirma a exclusão.
 -- COMMIT;
 --
--- Após o COMMIT de B, o UPDATE de A termina sem alterar linhas, pois o registro
--- foi excluído. Confirme e verifique na sessão A:
+-- 4) Em READ COMMITTED, o UPDATE de A termina afetando zero linhas porque B
+-- excluiu o registro. Verifique na sessão A e finalize sua transação:
 -- SELECT inventory_id, store_id
 -- FROM inventory
--- WHERE inventory_id = 12345;
+-- WHERE inventory_id = :id;
 -- COMMIT;
--- Resultado final: a unidade foi excluída e não pode ser transferida.
+-- Resultado: a unidade foi excluída e não pode ser transferida.
