@@ -36,3 +36,9 @@ Após o COMMIT, a tabela possui apenas o registro válido ou ambos? Qual é a va
 **Cenário:** Na operação logística da locadora, dois gestores de suprimentos estão tentando processar o mesmo item físico de estoque (mesmo `inventory_id`) exatamente ao mesmo tempo. Um gestor está tentando transferir a unidade recém cadastrada para a outra loja para suprir uma demanda, enquanto o outro está tentando excluí-la pois afirma ter que devolver ao distribuidor devido a um erro na emissão da nota fiscal de aquisição.
 
 Simule uma transação concorrente para mostrar em sessões diferentes as ações de cada gestor. O que iniciar primeiro a transação terá prioridade. Mostre um passo-a-passo considerando se a sessão A iniciar primeiro e outro considerando a sessão B.
+
+---
+
+## Resolução
+
+[Acessar o arquivo SQL com a resolução](../resolucao/desafio02.sql)
