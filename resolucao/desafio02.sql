@@ -77,9 +77,11 @@ COMMIT;
 -- QUESTÃO 03 - Concorrência sobre a mesma unidade de estoque
 -- ============================================================
 
--- Pré-requisitos: execute a questão 2 e anote o inventory_id retornado por um
--- dos INSERTs válidos. Use esse MESMO ID em ambas as sessões no lugar de :id.
--- Escolha uma unidade sem locações associadas para que a FK de rental não
+-- Pré-requisitos: execute a questão 2 e anote os inventory_id retornados.
+-- Use o mesmo ID nas duas sessões de cada cenário, mas um ID diferente para
+-- cada cenário (o cenário A termina excluindo sua unidade). Substitua :id pelo
+-- número literal antes de executar cada comando; :id é apenas um marcador.
+-- Escolha unidades sem locações associadas para que a FK de rental não
 -- impeça o DELETE. Abra duas conexões SQL, ambas no isolamento padrão
 -- READ COMMITTED. No dvdrental padrão, store_id = 2 é a outra loja.
 -- Execute os passos manualmente e na ordem indicada; não rode este bloco como
